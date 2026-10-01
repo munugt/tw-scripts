@@ -143,7 +143,6 @@
     function generarTexto() {
         var coord = parsearCoord($('#' + ID + '-objetivo').val());
         var origen = parsearCoord($('#' + ID + '-origen').val());
-        var $texto = $('#' + ID + '-texto');
         var $estado = $('#' + ID + '-estado');
         if (!coord) {
             $('#' + ID + '-resultado').hide();
@@ -169,11 +168,6 @@
             var url = location.origin + '/game.php?' + paramPueblo +
                 'screen=place&x=' + coord.x + '&y=' + coord.y;
             $('#' + ID + '-enviar').attr('href', url);
-            $texto.val(
-                '[table]\n' +
-                '[**][url=' + url + '][b]⚔️ ENVIAR[/b][/url]\n' +
-                '[/table]'
-            );
             $('#' + ID + '-resultado').show();
         }
     }
@@ -209,8 +203,6 @@
         '<table class="vis" style="width:100%;"><tr><td style="text-align:center;padding:6px;">' +
         '<a id="' + ID + '-enviar" class="btn" href="#" style="font-size:13px;">⚔️ <b>ENVIAR</b></a>' +
         '</td></tr></table>' +
-        '<textarea id="' + ID + '-texto" readonly rows="3" onclick="this.select()" ' +
-        'style="width:100%;margin-top:6px;font-size:10px;"></textarea>' +
         '</div>' +
         '</div>';
     $('body').append(html);
