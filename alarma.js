@@ -112,29 +112,17 @@
         return m ? { x: m[1], y: m[2] } : null;
     }
 
-    // Mapa "x|y" -> id de pueblo, a partir del archivo público del mundo.
-    // Se guarda 1 hora en localStorage para no pedirlo en cada uso.
-    var CACHE = ID + '-pueblos';
-    var CACHE_MS = 60 * 60 * 1000;
-
+    // Mapa "x|y" -> id de TUS pueblos, leído de la vista general de pueblos.
+    // Siempre está al día (incluye pueblos recién fundados o conquistados).
     function cargarPueblos() {
-        try {
-            var guardado = JSON.parse(localStorage.getItem(CACHE));
-            if (guardado && Date.now() - guardado.fecha < CACHE_MS) {
-                return $.Deferred().resolve(guardado.pueblos).promise();
-            }
-        } catch (e) { /* sin caché */ }
-
-        return $.get('/map/village.txt').then(function (datos) {
+        var url = game_data.link_base_pure + 'overview_villages&mode=prod&page=-1';
+        return $.get(url).then(function (html) {
             var pueblos = {};
-            datos.split('\n').forEach(function (linea) {
-                // id,nombre,x,y,jugador,puntos,rango
-                var c = linea.split(',');
-                if (c.length >= 4) pueblos[c[2] + '|' + c[3]] = c[0];
+            $('<div>').append($.parseHTML(html)).find('a[href*="village="]').each(function () {
+                var id = /village=(\d+)/.exec(this.href);
+                var c = /\((\d{1,3})\|(\d{1,3})\)/.exec($(this).text());
+                if (id && c) pueblos[c[1] + '|' + c[2]] = id[1];
             });
-            try {
-                localStorage.setItem(CACHE, JSON.stringify({ fecha: Date.now(), pueblos: pueblos }));
-            } catch (e) { /* almacenamiento lleno: se usa sin caché */ }
             return pueblos;
         });
     }
@@ -155,7 +143,7 @@
         cargarPueblos().then(function (pueblos) {
             var id = pueblos[origen.x + '|' + origen.y];
             if (!id) {
-                $estado.text('No existe ningún pueblo en ' + origen.x + '|' + origen.y);
+                $estado.text('No tienes ningún pueblo en ' + origen.x + '|' + origen.y);
                 $('#' + ID + '-resultado').hide();
                 return;
             }
