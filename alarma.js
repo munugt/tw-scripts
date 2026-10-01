@@ -86,21 +86,52 @@
         }, 250);
     }
 
+    // Extrae "xxx|yyy" de un texto, o null
+    function parsearCoord(texto) {
+        var m = /(\d{1,3})\|(\d{1,3})/.exec(texto);
+        return m ? { x: m[1], y: m[2] } : null;
+    }
+
+    // Genera el texto BBCode con el enlace a la plaza apuntando al objetivo
+    function generarTexto() {
+        var coord = parsearCoord($('#' + ID + '-objetivo').val());
+        var $texto = $('#' + ID + '-texto');
+        if (!coord) {
+            $texto.hide();
+            return;
+        }
+        var url = location.origin + '/game.php?screen=place&x=' + coord.x + '&y=' + coord.y;
+        $texto.val(
+            '[table]\n' +
+            '[**][url=' + url + '][b]⚔️ ENVIAR[/b][/url]\n' +
+            '[/table]'
+        ).show().select();
+    }
+
+    function aceptar() {
+        if ($('#' + ID + '-hora').val().trim()) activar();
+        generarTexto();
+    }
+
     // Si ya está abierto, no duplicar
     if ($('#' + ID).length) return;
 
     var html =
         '<div id="' + ID + '" style="position:fixed;top:120px;right:20px;z-index:99999;' +
-        'background:#f4e4bc;border:2px solid #7d510f;padding:10px;width:220px;font-size:12px;">' +
+        'background:#f4e4bc;border:2px solid #7d510f;padding:10px;width:260px;font-size:12px;">' +
         '<b>Alarma (hora servidor)</b>' +
         '<span id="' + ID + '-cerrar" style="float:right;cursor:pointer;">✖</span><br><br>' +
-        '<input id="' + ID + '-hora" type="text" placeholder="HH:MM:SS" style="width:90px;"> ' +
+        'Origen: <input id="' + ID + '-origen" type="text" placeholder="xxx|yyy" style="width:70px;"><br>' +
+        'Objetivo: <input id="' + ID + '-objetivo" type="text" placeholder="xxx|yyy" style="width:70px;"><br>' +
+        'Hora: <input id="' + ID + '-hora" type="text" placeholder="HH:MM:SS" style="width:70px;"> ' +
         '<button id="' + ID + '-ok" class="btn">OK</button>' +
         '<div id="' + ID + '-estado" style="margin-top:8px;"></div>' +
+        '<textarea id="' + ID + '-texto" readonly rows="4" ' +
+        'style="display:none;width:100%;margin-top:8px;font-size:11px;"></textarea>' +
         '</div>';
     $('body').append(html);
 
-    $('#' + ID + '-ok').on('click', activar);
-    $('#' + ID + '-hora').on('keydown', function (e) { if (e.key === 'Enter') activar(); });
+    $('#' + ID + '-ok').on('click', aceptar);
+    $('#' + ID + ' input').on('keydown', function (e) { if (e.key === 'Enter') aceptar(); });
     $('#' + ID + '-cerrar').on('click', function () { parar(); $('#' + ID).remove(); });
 })();
