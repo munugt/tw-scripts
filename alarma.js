@@ -41,7 +41,7 @@
 
     var sonido = null;          // intervalo que repite los pitidos
     var finSonido = null;       // tiempo máximo sonando
-    var DURACION_MS = 30 * 1000;
+    var DURACION_MS = 3 * 1000;
 
     // Ráfaga de pitidos con Web Audio (no carga archivos externos)
     function pitar() {
@@ -146,7 +146,7 @@
         var $texto = $('#' + ID + '-texto');
         var $estado = $('#' + ID + '-estado');
         if (!coord) {
-            $texto.hide();
+            $('#' + ID + '-resultado').hide();
             return;
         }
         if (!origen) {
@@ -157,7 +157,7 @@
             var id = pueblos[origen.x + '|' + origen.y];
             if (!id) {
                 $estado.text('No existe ningún pueblo en ' + origen.x + '|' + origen.y);
-                $texto.hide();
+                $('#' + ID + '-resultado').hide();
                 return;
             }
             mostrarTexto('village=' + id + '&');
@@ -168,11 +168,13 @@
         function mostrarTexto(paramPueblo) {
             var url = location.origin + '/game.php?' + paramPueblo +
                 'screen=place&x=' + coord.x + '&y=' + coord.y;
+            $('#' + ID + '-enviar').attr('href', url);
             $texto.val(
                 '[table]\n' +
                 '[**][url=' + url + '][b]⚔️ ENVIAR[/b][/url]\n' +
                 '[/table]'
-            ).show().select();
+            );
+            $('#' + ID + '-resultado').show();
         }
     }
 
@@ -182,7 +184,7 @@
         if (sonido) {
             silenciar();
         } else if ($('#' + ID + '-hora').val().trim()) {
-            $('#' + ID + '-texto').hide();
+            $('#' + ID + '-resultado').hide();
             activar();
         } else {
             generarTexto();
@@ -202,8 +204,14 @@
         'Hora: <input id="' + ID + '-hora" type="text" placeholder="HH:MM:SS" style="width:70px;"> ' +
         '<button id="' + ID + '-ok" class="btn">OK</button>' +
         '<div id="' + ID + '-estado" style="margin-top:8px;"></div>' +
-        '<textarea id="' + ID + '-texto" readonly rows="4" ' +
-        'style="display:none;width:100%;margin-top:8px;font-size:11px;"></textarea>' +
+        '<div id="' + ID + '-resultado" style="display:none;margin-top:8px;">' +
+        // Botón que lleva a la plaza del origen con el objetivo rellenado (1 clic = 1 acción)
+        '<table class="vis" style="width:100%;"><tr><td style="text-align:center;padding:6px;">' +
+        '<a id="' + ID + '-enviar" class="btn" href="#" style="font-size:13px;">⚔️ <b>ENVIAR</b></a>' +
+        '</td></tr></table>' +
+        '<textarea id="' + ID + '-texto" readonly rows="3" onclick="this.select()" ' +
+        'style="width:100%;margin-top:6px;font-size:10px;"></textarea>' +
+        '</div>' +
         '</div>';
     $('body').append(html);
 
