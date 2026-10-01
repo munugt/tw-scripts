@@ -167,7 +167,10 @@
         function mostrarTexto(paramPueblo) {
             var url = location.origin + '/game.php?' + paramPueblo +
                 'screen=place&x=' + coord.x + '&y=' + coord.y;
-            $('#' + ID + '-enviar').attr('href', url);
+            $('#' + ID + '-enviar').attr({ href: url, title: url });
+            $('#' + ID + '-estado').text(paramPueblo
+                ? 'Origen ' + origen.x + '|' + origen.y + ' → pueblo ID ' + paramPueblo.slice(8, -1)
+                : 'Sin origen: se abrirá desde el pueblo actual');
             $('#' + ID + '-resultado').show();
         }
     }
