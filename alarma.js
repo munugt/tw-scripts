@@ -39,10 +39,13 @@
         return [h, m, s].map(function (n) { return n < 10 ? '0' + n : n; }).join(':');
     }
 
-    // Pitido con Web Audio (no carga archivos externos)
-    function sonar() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        for (var i = 0; i < 6; i++) {
+    var sonido = null;          // intervalo que repite los pitidos
+    var finSonido = null;       // tiempo máximo sonando
+    var DURACION_MS = 30 * 1000;
+
+    // Ráfaga de pitidos con Web Audio (no carga archivos externos)
+    function pitar() {
+        for (var i = 0; i < 2; i++) {
             var osc = audioCtx.createOscillator();
             var gain = audioCtx.createGain();
             var inicio = audioCtx.currentTime + i * 0.5;
@@ -55,6 +58,23 @@
             osc.start(inicio);
             osc.stop(inicio + 0.3);
         }
+    }
+
+    // Suena hasta pulsar STOP o hasta que pasen DURACION_MS
+    function sonar() {
+        pitar();
+        sonido = setInterval(pitar, 1000);
+        finSonido = setTimeout(silenciar, DURACION_MS);
+        $('#' + ID + '-ok').text('STOP');
+    }
+
+    // Detiene la alarma y muestra el texto
+    function silenciar() {
+        clearInterval(sonido);
+        clearTimeout(finSonido);
+        sonido = null;
+        $('#' + ID + '-ok').text('OK');
+        generarTexto();
     }
 
     function parar() {
@@ -156,9 +176,17 @@
         }
     }
 
+    // OK: si suena, la para; si hay hora, programa la alarma (el texto sale al pararla);
+    // sin hora, muestra el texto directamente
     function aceptar() {
-        if ($('#' + ID + '-hora').val().trim()) activar();
-        generarTexto();
+        if (sonido) {
+            silenciar();
+        } else if ($('#' + ID + '-hora').val().trim()) {
+            $('#' + ID + '-texto').hide();
+            activar();
+        } else {
+            generarTexto();
+        }
     }
 
     // Si ya está abierto, no duplicar
@@ -181,5 +209,10 @@
 
     $('#' + ID + '-ok').on('click', aceptar);
     $('#' + ID + ' input').on('keydown', function (e) { if (e.key === 'Enter') aceptar(); });
-    $('#' + ID + '-cerrar').on('click', function () { parar(); $('#' + ID).remove(); });
+    $('#' + ID + '-cerrar').on('click', function () {
+        parar();
+        clearInterval(sonido);
+        clearTimeout(finSonido);
+        $('#' + ID).remove();
+    });
 })();
