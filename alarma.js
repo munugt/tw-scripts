@@ -92,20 +92,68 @@
         return m ? { x: m[1], y: m[2] } : null;
     }
 
-    // Genera el texto BBCode con el enlace a la plaza apuntando al objetivo
+    // Mapa "x|y" -> id de pueblo, a partir del archivo público del mundo.
+    // Se guarda 1 hora en localStorage para no pedirlo en cada uso.
+    var CACHE = ID + '-pueblos';
+    var CACHE_MS = 60 * 60 * 1000;
+
+    function cargarPueblos() {
+        try {
+            var guardado = JSON.parse(localStorage.getItem(CACHE));
+            if (guardado && Date.now() - guardado.fecha < CACHE_MS) {
+                return $.Deferred().resolve(guardado.pueblos).promise();
+            }
+        } catch (e) { /* sin caché */ }
+
+        return $.get('/map/village.txt').then(function (datos) {
+            var pueblos = {};
+            datos.split('\n').forEach(function (linea) {
+                // id,nombre,x,y,jugador,puntos,rango
+                var c = linea.split(',');
+                if (c.length >= 4) pueblos[c[2] + '|' + c[3]] = c[0];
+            });
+            try {
+                localStorage.setItem(CACHE, JSON.stringify({ fecha: Date.now(), pueblos: pueblos }));
+            } catch (e) { /* almacenamiento lleno: se usa sin caché */ }
+            return pueblos;
+        });
+    }
+
+    // Genera el texto BBCode con el enlace a la plaza del origen apuntando al objetivo
     function generarTexto() {
         var coord = parsearCoord($('#' + ID + '-objetivo').val());
+        var origen = parsearCoord($('#' + ID + '-origen').val());
         var $texto = $('#' + ID + '-texto');
+        var $estado = $('#' + ID + '-estado');
         if (!coord) {
             $texto.hide();
             return;
         }
-        var url = location.origin + '/game.php?screen=place&x=' + coord.x + '&y=' + coord.y;
-        $texto.val(
-            '[table]\n' +
-            '[**][url=' + url + '][b]⚔️ ENVIAR[/b][/url]\n' +
-            '[/table]'
-        ).show().select();
+        if (!origen) {
+            mostrarTexto('');
+            return;
+        }
+        cargarPueblos().then(function (pueblos) {
+            var id = pueblos[origen.x + '|' + origen.y];
+            if (!id) {
+                $estado.text('No existe ningún pueblo en ' + origen.x + '|' + origen.y);
+                $texto.hide();
+                return;
+            }
+            mostrarTexto('village=' + id + '&');
+        }, function () {
+            $estado.text('No se pudo cargar la lista de pueblos');
+        });
+
+        function mostrarTexto(paramPueblo) {
+            var url = location.origin + '/game.php?' + paramPueblo +
+                'screen=place&x=' + coord.x + '&y=' + coord.y;
+            $texto.val(
+                '[table]\n' +
+                '[**][url=' + url + '][b]⚔️ ENVIAR[/b][/url]\n' +
+                '[/table]'
+            ).show().select();
+        }
     }
 
     function aceptar() {
