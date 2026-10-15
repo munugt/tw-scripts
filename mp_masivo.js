@@ -22,6 +22,7 @@
     var ID = 'tw-mp';
     var mensajes = [];      // [{ jugador, asunto, texto, estado }]
     var enviando = false;
+    var asuntoManual = false; // true cuando el usuario escribe un asunto: se usa para todos los siguientes
 
     if ($('#' + ID).length) return;
 
@@ -59,7 +60,7 @@
         $('#' + ID + '-lista').html(html);
         $('#' + ID + '-progreso').text(enviados + ' / ' + mensajes.length + ' enviados');
         var sig = siguiente();
-        $('#' + ID + '-asunto').val(sig >= 0 ? mensajes[sig].asunto : '');
+        if (!asuntoManual) $('#' + ID + '-asunto').val(sig >= 0 ? mensajes[sig].asunto : '');
     }
 
     // Índice del siguiente mensaje pendiente, o -1
@@ -129,9 +130,9 @@
     }
 
     var html =
-        '<div id="' + ID + '" style="position:fixed;top:100px;right:20px;z-index:99999;' +
+        '<div id="' + ID + '" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;' +
         'background:#f4e4bc;border:2px solid #7d510f;padding:10px;width:360px;font-size:12px;">' +
-        '<b>MP masivo</b>' +
+        '<b id="' + ID + '-titulo" style="cursor:move;display:inline-block;width:320px;">MP masivo ✥</b>' +
         '<span id="' + ID + '-cerrar" style="float:right;cursor:pointer;">✖</span><br><br>' +
         '<div id="' + ID + '-paso1">' +
         'Pega aquí los mensajes (cada uno empieza con [u]Jugador[/u]):<br>' +
@@ -147,6 +148,24 @@
         '<div id="' + ID + '-progreso" style="margin-top:8px;font-weight:bold;"></div>' +
         '</div>';
     $('body').append(html);
+
+    // Asunto escrito a mano = asunto para este y todos los siguientes (vacío = el de cada mensaje)
+    $('#' + ID + '-asunto').on('input', function () {
+        asuntoManual = $(this).val().trim() !== '';
+    });
+
+    // Arrastrar la ventana desde el título
+    $('#' + ID + '-titulo').on('mousedown', function (e) {
+        var $v = $('#' + ID), pos = $v[0].getBoundingClientRect();
+        var dx = e.clientX - pos.left, dy = e.clientY - pos.top;
+        $v.css({ transform: 'none', left: pos.left, top: pos.top });
+        $(document).on('mousemove.' + ID + 'drag', function (ev) {
+            $v.css({ left: ev.clientX - dx, top: ev.clientY - dy });
+        }).on('mouseup.' + ID + 'drag', function () {
+            $(document).off('.' + ID + 'drag');
+        });
+        e.preventDefault();
+    });
 
     $('#' + ID + '-cargar').on('click', cargar);
     $('#' + ID + '-enviar').on('click', enviarSiguiente);
