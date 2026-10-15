@@ -1,7 +1,7 @@
 /*
  * Nombre:    MP masivo
  * Autor:     munugt
- * Versión:   1.0
+ * Versión:   2.0
  * Juego:     Guerras Tribales
  *
  * Descripción:
@@ -10,8 +10,9 @@
  *   línea [u]Jugador[/u]; todo lo que hay debajo (hasta el siguiente
  *   [u]...[/u]) es el cuerpo del mensaje.
  *   Al pulsar "Cargar" aparece la lista de mensajes y cada pulsación de
- *   ENTER (o del botón "Enviar") envía UN solo mensaje privado, el siguiente
- *   de la lista. 1 pulsación = 1 mensaje.
+ *   ENTER (o del botón "Abrir siguiente") abre la pantalla "Escribir mensaje"
+ *   del juego con destinatario, asunto y texto rellenados. El script NO envía
+ *   nada ni hace peticiones: el jugador pulsa "Enviar" en el propio juego.
  *
  *   El asunto se toma del primer [color=...]...[/color] del mensaje
  *   (p. ej. "🛡️ BLINDAJE") y se puede cambiar en el panel.
@@ -21,7 +22,6 @@
 
     var ID = 'tw-mp';
     var mensajes = [];      // [{ jugador, asunto, texto, estado }]
-    var enviando = false;
     var asuntoManual = false; // true cuando el usuario escribe un asunto: se usa para todos los siguientes
 
     if ($('#' + ID).length) return;
@@ -46,19 +46,19 @@
     }
 
     function pintarLista() {
-        var enviados = mensajes.filter(function (x) { return x.estado === 'ok'; }).length;
+        var abiertos = mensajes.filter(function (x) { return x.estado === 'ok'; }).length;
         var html = '<table class="vis" style="width:100%;">' +
             '<tr><th>#</th><th>Jugador</th><th>Estado</th></tr>';
         mensajes.forEach(function (x, i) {
             var color = x.estado === 'ok' ? '#2a7a2a' : x.estado === 'error' ? '#b00' : '#000';
-            var marca = x.estado === 'ok' ? '✔' : x.estado === 'error' ? '✖ ' + escapar(x.error || '') : '…';
+            var marca = x.estado === 'ok' ? '✔ abierto' : x.estado === 'error' ? '✖ ' + escapar(x.error || '') : '…';
             html += '<tr' + (i === siguiente() ? ' style="background:#fff3c4;"' : '') + '>' +
                 '<td>' + (i + 1) + '</td><td>' + escapar(x.jugador) + '</td>' +
                 '<td style="color:' + color + ';">' + marca + '</td></tr>';
         });
         html += '</table>';
         $('#' + ID + '-lista').html(html);
-        $('#' + ID + '-progreso').text(enviados + ' / ' + mensajes.length + ' enviados');
+        $('#' + ID + '-progreso').text(abiertos + ' / ' + mensajes.length + ' preparados');
         var sig = siguiente();
         if (!asuntoManual) $('#' + ID + '-asunto').val(sig >= 0 ? mensajes[sig].asunto : '');
     }
@@ -81,52 +81,40 @@
         $('#' + ID + '-enviar').focus();
     }
 
-    // Envía UN mensaje: abre el formulario de "nuevo mensaje" del juego y lo envía con los datos
-    function enviarSiguiente() {
+    // Abre "Escribir mensaje" del juego en otra pestaña con todo rellenado.
+    // El script NO envía nada: el jugador pulsa "Enviar" en el formulario del juego.
+    function abrirSiguiente() {
         var i = siguiente();
-        if (enviando || i < 0) return;
+        if (i < 0) return;
         var msg = mensajes[i];
         msg.asunto = $('#' + ID + '-asunto').val().trim() || msg.asunto || 'Mensaje';
-        enviando = true;
-        $('#' + ID + '-progreso').text('Enviando a ' + msg.jugador + '...');
-
-        $.get(game_data.link_base_pure + 'mail&mode=new').then(function (html) {
-            var $form = $('<div>').append($.parseHTML(html)).find('form').filter(function () {
-                return $(this).find('textarea[name="text"]').length > 0;
-            }).first();
-            if (!$form.length) return $.Deferred().reject('No se encontró el formulario de mensajes');
-            var datos = {};
-            $form.serializeArray().forEach(function (c) { datos[c.name] = c.value; });
-            datos.to = msg.jugador;
-            datos.subject = msg.asunto;
-            datos.text = msg.texto;
-            // Los botones no entran en serializeArray: añadir el de "Enviar" (no el de vista previa)
-            var $boton = $form.find('input[type="submit"][name], button[type="submit"][name], button[name]:not([type])')
-                .filter(function () { return !/preview|vista/i.test(this.name + ' ' + $(this).val()); }).first();
-            if ($boton.length) datos[$boton.attr('name')] = $boton.val() || '1';
-            console.log('[MP masivo] POST', $form.attr('action'), datos);
-            return $.post($form.attr('action'), datos);
-        }).then(function (resp) {
-            var $r = $('<div>').append($.parseHTML(resp || ''));
-            var err = $r.find('.error_box').text().trim();
-            if (err) {
-                msg.estado = 'error';
-                msg.error = err;
-            } else if ($r.find('textarea[name="text"]').length) {
-                // Si vuelve el formulario de redactar, el mensaje no se ha enviado
-                msg.estado = 'error';
-                msg.error = 'El juego no lo ha enviado';
-            } else {
-                msg.estado = 'ok';
+        var w = window.open(game_data.link_base_pure + 'mail&mode=new', ID + '-redactar');
+        if (!w) {
+            $('#' + ID + '-progreso').text('El navegador ha bloqueado la pestaña: permite ventanas emergentes');
+            return;
+        }
+        var intentos = 0;
+        var rellenar = setInterval(function () {
+            intentos++;
+            try {
+                var $d = $(w.document);
+                var $text = $d.find('textarea[name="text"]');
+                if ($text.length && w.document.readyState === 'complete') {
+                    clearInterval(rellenar);
+                    $d.find('input[name="to"]').val(msg.jugador);
+                    $d.find('input[name="subject"]').val(msg.asunto);
+                    $text.val(msg.texto);
+                    msg.estado = 'ok';
+                    pintarLista();
+                    $('#' + ID + '-progreso').append(' — revisa la pestaña y pulsa Enviar');
+                    w.focus();
+                }
+            } catch (e) { /* la pestaña aún está cargando */ }
+            if (intentos > 40) {
+                clearInterval(rellenar);
+                $('#' + ID + '-progreso').text('No se pudo rellenar el formulario de ' + msg.jugador);
             }
-        }, function (e) {
-            msg.estado = 'error';
-            msg.error = typeof e === 'string' ? e : 'Error de conexión';
-        }).always(function () {
-            enviando = false;
-            pintarLista();
-            if (siguiente() < 0) $('#' + ID + '-progreso').append(' — ¡Terminado!');
-        });
+        }, 250);
     }
 
     var html =
@@ -141,7 +129,7 @@
         '</div>' +
         '<div id="' + ID + '-paso2" style="display:none;">' +
         'Asunto: <input id="' + ID + '-asunto" type="text" style="width:250px;"><br><br>' +
-        '<button id="' + ID + '-enviar" class="btn">Enviar siguiente (ENTER)</button> ' +
+        '<button id="' + ID + '-enviar" class="btn">Abrir siguiente (ENTER)</button> ' +
         '<button id="' + ID + '-volver" class="btn">Volver</button>' +
         '<div style="max-height:300px;overflow:auto;margin-top:8px;" id="' + ID + '-lista"></div>' +
         '</div>' +
@@ -168,20 +156,20 @@
     });
 
     $('#' + ID + '-cargar').on('click', cargar);
-    $('#' + ID + '-enviar').on('click', enviarSiguiente);
+    $('#' + ID + '-enviar').on('click', abrirSiguiente);
     $('#' + ID + '-volver').on('click', function () {
         $('#' + ID + '-paso2').hide();
         $('#' + ID + '-paso1').show();
         $('#' + ID + '-progreso').text('');
     });
 
-    // ENTER = enviar un mensaje (ignora la tecla mantenida y el ENTER dentro del cuadro de texto)
+    // ENTER = abrir el siguiente mensaje (ignora la tecla mantenida y el ENTER dentro del cuadro de texto)
     $(document).on('keydown.' + ID, function (e) {
         if (e.key !== 'Enter' || e.repeat) return;
         if (!$('#' + ID + '-paso2').is(':visible')) return;
         if ($(e.target).is('textarea')) return;
         e.preventDefault();
-        enviarSiguiente();
+        abrirSiguiente();
     });
 
     $('#' + ID + '-cerrar').on('click', function () {
