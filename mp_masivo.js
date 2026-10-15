@@ -99,12 +99,22 @@
             datos.to = msg.jugador;
             datos.subject = msg.asunto;
             datos.text = msg.texto;
+            // Los botones no entran en serializeArray: añadir el de "Enviar" (no el de vista previa)
+            var $boton = $form.find('input[type="submit"][name], button[type="submit"][name], button[name]:not([type])')
+                .filter(function () { return !/preview|vista/i.test(this.name + ' ' + $(this).val()); }).first();
+            if ($boton.length) datos[$boton.attr('name')] = $boton.val() || '1';
+            console.log('[MP masivo] POST', $form.attr('action'), datos);
             return $.post($form.attr('action'), datos);
         }).then(function (resp) {
-            var err = $('<div>').append($.parseHTML(resp || '')).find('.error_box').text().trim();
+            var $r = $('<div>').append($.parseHTML(resp || ''));
+            var err = $r.find('.error_box').text().trim();
             if (err) {
                 msg.estado = 'error';
                 msg.error = err;
+            } else if ($r.find('textarea[name="text"]').length) {
+                // Si vuelve el formulario de redactar, el mensaje no se ha enviado
+                msg.estado = 'error';
+                msg.error = 'El juego no lo ha enviado';
             } else {
                 msg.estado = 'ok';
             }
