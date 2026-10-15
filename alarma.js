@@ -1,10 +1,23 @@
 /*
- * Alarma - Guerras Tribales
- * Muestra un cuadro donde escribir una hora (hora del servidor) y, al llegar,
- * suena una alarma. No realiza ninguna acción en el juego.
+ * Name:     Alarm
+ * Author:   munugt
+ * Version:  1.2
+ * Game:     Tribal Wars
  *
- * Uso (barra de acceso rápido):
- *   javascript:$.getScript("https://TU-HOSTING/alarma.js");
+ * Description:
+ *   Opens a small panel where the player enters a time (server time).
+ *   When that time is reached, an alarm sounds (beeps generated with the
+ *   Web Audio API, no external files) for a few seconds or until STOP is
+ *   pressed. Optionally, given one of the player's own villages as origin
+ *   and target coordinates, it shows a button that opens the rally point of
+ *   that village with the target pre-filled. The player sends troops manually.
+ *
+ * The script does NOT perform any automatic action in the game:
+ *   - It does not send troops or click any game buttons.
+ *   - It makes at most ONE request in total (cached), to the player's own
+ *     village overview page, to look up the id of the origin village.
+ *   - It does not contact external servers or load third-party resources.
+ *   - All configuration is done through the in-game panel.
  */
 (function () {
     'use strict';
@@ -113,10 +126,12 @@
     }
 
     // Mapa "x|y" -> id de TUS pueblos, leído de la vista general de pueblos.
-    // Siempre está al día (incluye pueblos recién fundados o conquistados).
+    // Se pide UNA sola vez por sesión del script (máx. 1 petición en total).
+    var pueblosCache = null;
     function cargarPueblos() {
+        if (pueblosCache) return pueblosCache;
         var url = game_data.link_base_pure + 'overview_villages&mode=prod&page=-1';
-        return $.get(url).then(function (html) {
+        pueblosCache = $.get(url).then(function (html) {
             var pueblos = {};
             $('<div>').append($.parseHTML(html)).find('a[href*="village="]').each(function () {
                 var id = /village=(\d+)/.exec(this.href);
@@ -124,7 +139,10 @@
                 if (id && c) pueblos[c[1] + '|' + c[2]] = id[1];
             });
             return pueblos;
+        }, function () {
+            pueblosCache = null; // si falla, se puede reintentar más tarde
         });
+        return pueblosCache;
     }
 
     // Genera el texto BBCode con el enlace a la plaza del origen apuntando al objetivo
@@ -177,9 +195,9 @@
     if ($('#' + ID).length) return;
 
     var html =
-        '<div id="' + ID + '" style="position:fixed;top:120px;right:20px;z-index:99999;' +
+        '<div id="' + ID + '" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;' +
         'background:#f4e4bc;border:2px solid #7d510f;padding:10px;width:260px;font-size:12px;">' +
-        '<b>Alarma (hora servidor)</b>' +
+        '<b id="' + ID + '-titulo" style="cursor:move;display:inline-block;width:220px;">Alarma (hora servidor) ✥</b>' +
         '<span id="' + ID + '-cerrar" style="float:right;cursor:pointer;">✖</span><br><br>' +
         'Origen: <input id="' + ID + '-origen" type="text" placeholder="xxx|yyy" style="width:70px;"><br>' +
         'Objetivo: <input id="' + ID + '-objetivo" type="text" placeholder="xxx|yyy" style="width:70px;"><br>' +
@@ -195,12 +213,26 @@
         '</div>';
     $('body').append(html);
 
+    // Arrastrar la ventana desde el título
+    $('#' + ID + '-titulo').on('mousedown', function (e) {
+        var $v = $('#' + ID), pos = $v[0].getBoundingClientRect();
+        var dx = e.clientX - pos.left, dy = e.clientY - pos.top;
+        $v.css({ transform: 'none', left: pos.left, top: pos.top });
+        $(document).on('mousemove.' + ID + 'drag', function (ev) {
+            $v.css({ left: ev.clientX - dx, top: ev.clientY - dy });
+        }).on('mouseup.' + ID + 'drag', function () {
+            $(document).off('.' + ID + 'drag');
+        });
+        e.preventDefault();
+    });
+
     $('#' + ID + '-ok').on('click', aceptar);
     $('#' + ID + ' input').on('keydown', function (e) { if (e.key === 'Enter') aceptar(); });
     $('#' + ID + '-cerrar').on('click', function () {
         parar();
         clearInterval(sonido);
         clearTimeout(finSonido);
+        $(document).off('.' + ID + 'drag');
         $('#' + ID).remove();
     });
 })();
